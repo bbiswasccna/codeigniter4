@@ -57,7 +57,7 @@ jobs:
           find app -name "*.php" -print0 | xargs -0 -n1 php -l
 
       - name: Run PHPUnit Tests
-        run: vendor/bin/phpunit
+        run: vendor/bin/phpunit --no-coverage
 
       - name: Upload Test Logs
         if: failure()
