@@ -1,28 +1,67 @@
-name: My CICD Pipeline in GitHub Actions
+name: CodeIgniter 4 CI/CD Pipeline
 
 on:
- push:
-  branches: main
-  
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
 jobs:
-  build:
-    runs-on: ubuntu-24.04
+  ci:
+    name: Build and Test
+    runs-on: ubuntu-latest
 
-  steps:
-   - users: actions/checkout@v4
-   
-   - name: Initialize Repo
-    run: |
-      echo "This is DevOps Tutorials"
-      uname -a
+    strategy:
+      matrix:
+        php-version: [8.2]
 
-   - name : Check the docker installation
-    run: |
-       docker
-       docker images
-       
-   - name : Run Docker Container
-    run: |
-        docker run hello-world
-   
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: intl, mbstring, mysqli, pdo_mysql, json, xml, curl, zip
+          coverage: none
+
+      - name: Validate Composer
+        run: composer validate
+
+      - name: Cache Composer Packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Create Environment File
+        run: |
+          cp env .env
+          php -r "file_put_contents('.env', str_replace('CI_ENVIRONMENT = production','CI_ENVIRONMENT = testing', file_get_contents('.env')));"
+
+      - name: Set Writable Permissions
+        run: chmod -R 777 writable
+
+      - name: Check PHP Syntax
+        run: |
+          find app -name "*.php" -print0 | xargs -0 -n1 php -l
+
+      - name: Run PHPUnit Tests
+        run: vendor/bin/phpunit
+
+      - name: Upload Test Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: writable/logs
